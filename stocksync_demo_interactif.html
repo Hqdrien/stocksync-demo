@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StockSync – Démo interactive (données fictives)</title>
+  <style>
+    :root {
+      --bg:#020617; --bg-alt:#020617; --fg:#e5e7eb; --muted:#9ca3af;
+      --card:#020617; --card-border:#111827; --accent:#2563eb;
+      --ok:#22c55e; --bad:#ef4444; --warn:#f97316;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; background:radial-gradient(circle at top, #020617 0, #000 60%);
+      color:var(--fg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .page { max-width:1200px; margin:0 auto; padding:26px 16px 40px; }
+    h1 { margin:0 0 4px; font-size:26px; }
+    p { margin:4px 0 8px; line-height:1.5; }
+    .muted { color:var(--muted); }
+    .top-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+    .pill { display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:11px; text-transform:uppercase; letter-spacing:.09em; }
+    .pill-accent { background:rgba(37,99,235,.18); color:#93c5fd; }
+    .pill-ok { background:rgba(34,197,94,.16); color:#bbf7d0; }
+
+    .tabs {
+      margin-top:16px; border-bottom:1px solid #111827;
+      display:flex; gap:4px; flex-wrap:wrap;
+    }
+    .tab-btn {
+      border:none; background:transparent; color:var(--muted);
+      padding:8px 14px; font-size:13px; cursor:pointer;
+      border-radius:10px 10px 0 0; border:1px solid transparent;
+    }
+    .tab-btn.active {
+      color:#e5e7eb; background:#020617; border-color:#111827; border-bottom-color:#020617;
+    }
+    .tab-content { display:none; padding-top:16px; }
+    .tab-content.active { display:block; }
+
+    .card {
+      background:var(--card); border-radius:14px;
+      border:1px solid var(--card-border);
+      padding:14px 16px; margin:10px 0 14px;
+    }
+    .card-header { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; }
+    .card-title { font-size:14px; font-weight:600; }
+    .badge { font-size:11px; padding:2px 6px; border-radius:999px; border:1px solid #1f2937; color:var(--muted); }
+
+    .kpis { display:flex; flex-wrap:wrap; gap:12px; }
+    .kpi-box { flex:1 1 160px; min-width:150px; border-radius:12px; padding:10px 12px;
+               background:linear-gradient(135deg,#020617,#020617); border:1px solid #111827; }
+    .kpi-label { font-size:11px; text-transform:uppercase; color:var(--muted); letter-spacing:.09em; }
+    .kpi-value { font-size:18px; font-weight:600; margin-top:4px; }
+    .kpi-delta { font-size:11px; margin-top:2px; }
+    .delta-pos { color:var(--ok); }
+    .delta-neg { color:var(--bad); }
+
+    table { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+    th, td { padding:6px 6px; border-bottom:1px solid #111827; text-align:right; }
+    th { text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    td:first-child, th:first-child { text-align:left; }
+    tr:hover td { background:#020617; }
+
+    input[type="number"], input[type="text"] {
+      background:#020617; border:1px solid #1f2937; border-radius:6px;
+      color:var(--fg); font-size:12px; padding:3px 6px; width:100%;
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+
+    .chip { display:inline-flex; align-items:center; padding:2px 7px; border-radius:999px; font-size:11px; }
+    .chip-tag { background:rgba(56,189,248,.16); color:#7dd3fc; }
+
+    .layout-two { display:flex; flex-wrap:wrap; gap:14px; }
+    .layout-two > .card { flex:1 1 280px; }
+
+    .slider-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    input[type="range"] { width:200px; }
+
+    .scenario-metric { font-size:18px; font-weight:600; }
+
+    @media (max-width:768px) {
+      .page { padding:20px 10px 28px; }
+      .layout-two { flex-direction:column; }
+      input[type="range"] { width:100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="top-row">
+    <div>
+      <h1>StockSync – Démo interactive (données fictives)</h1>
+      <p class="muted">Cette page reproduit les principales logiques de StockSync (sans backend) avec un portefeuille totalement fictif. Toutes les valeurs peuvent être modifiées pour explorer le comportement de l&apos;outil.</p>
+    </div>
+    <div>
+      <span class="pill pill-accent">Demo front‑only</span>
+      <span class="pill pill-ok">Portefeuille v3.6</span>
+    </div>
+  </div>
+
+  <!-- Onglets -->
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="tab-portfolio">💼 Portefeuille</button>
+    <button class="tab-btn" data-tab="tab-tags">🏷️ Tags &amp; stratégies</button>
+    <button class="tab-btn" data-tab="tab-scenarios">🧪 Scénarios / What‑if</button>
+    <button class="tab-btn" data-tab="tab-dividends">💸 Dividendes &amp; rente</button>
+    <button class="tab-btn" data-tab="tab-compare">📆 Comparatif historique</button>
+  </div>
+
+  <!-- ===================== TAB 1: PORTEFEUILLE ===================== -->
+  <div class="tab-content active" id="tab-portfolio">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Résumé du portefeuille (fictif)</div>
+        <span class="badge">Valeurs éditables ci‑dessous</span>
+      </div>
+      <div class="kpis" id="portfolio-kpis"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Portefeuille détaillé</div>
+        <span class="badge">Modifiez quantités, PRU ou cours pour voir l&apos;impact</span>
+      </div>
+      <table id="positions-table">
+        <thead>
+          <tr>
+            <th>ShortName</th>
+            <th>Ticker</th>
+            <th>Secteur</th>
+            <th>Devise</th>
+            <th>Quantité</th>
+            <th>PRU (dev.)</th>
+            <th>Cours actuel (dev.)</th>
+            <th>Cours actuel (€)</th>
+            <th>Valeur actuelle (€)</th>
+            <th>Montant investi (€)</th>
+            <th>Gain/Perte (€)</th>
+            <th>Gain/Perte (%)</th>
+            <th>Poids (%)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p class="muted" style="margin-top:6px;">Hypothèse : taux de change fixes (exemple) &mdash; USD→EUR = 1,49, etc. Les conversions sont calculées côté navigateur.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Liquidités (CASH) &amp; objectif</div>
+        <span class="badge">Paramètres globaux de la démo</span>
+      </div>
+      <div class="layout-two">
+        <div>
+          <h3>CASH</h3>
+          <p class="muted">Montant de liquidités fictif inclus dans les totaux.</p>
+          <label>Liquidités (CASH) en €<br>
+            <input type="number" id="input-cash" value="5000" step="100" />
+          </label>
+        </div>
+        <div>
+          <h3>Objectif de valeur</h3>
+          <p class="muted">Suivi d&apos;un objectif global sur la valeur totale du portefeuille.</p>
+          <label>Objectif (EUR)<br>
+            <input type="number" id="input-goal" value="150000" step="1000" />
+          </label>
+          <p style="margin-top:6px;">Progression : <span id="goal-progress" style="font-weight:600;">‑</span></p>
+          <p class="muted">Le pourcentage et le montant restant s&apos;adaptent en temps réel.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TAB 2: TAGS ===================== -->
+  <div class="tab-content" id="tab-tags">
+    <div class="layout-two">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Tags / Stratégies &amp; rendements</div>
+          <span class="badge">Éditez Tag &amp; Rendement (%) par ligne</span>
+        </div>
+        <table id="tags-table">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>ShortName</th>
+              <th>Secteur</th>
+              <th>Tag</th>
+              <th>Rendement (%)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="muted" style="margin-top:6px;">Les Tags et Rendement (%) resteront dans cette page tant qu&apos;elle est ouverte. Dans l&apos;application réelle, ils sont persistés sur disque.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Vue agrégée par Tag / stratégie</div>
+          <span class="badge">Agrégation dynamique</span>
+        </div>
+        <table id="tags-agg-table">
+          <thead>
+            <tr>
+              <th>Tag</th>
+              <th>Valeur actuelle (€)</th>
+              <th>Gain/Perte (€)</th>
+              <th>Poids (%)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="muted" style="margin-top:6px;">Permet de visualiser la contribution de chaque stratégie en valeur, performance et poids relatif.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TAB 3: SCENARIOS ===================== -->
+  <div class="tab-content" id="tab-scenarios">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Scénarios / What‑if</div>
+        <span class="badge">Simulation front‑only sur les cours en €</span>
+      </div>
+      <p class="muted">Choisissez une ou plusieurs lignes et appliquez une variation sur le cours pour voir l&apos;impact sur la valeur totale et sur les lignes sélectionnées.</p>
+      <div class="slider-row" style="margin:8px 0 10px;">
+        <label for="scenario-select" style="font-size:13px;">
+          Lignes à simuler<br>
+          <select id="scenario-select" multiple size="4" style="min-width:210px; background:#020617; color:var(--fg); border:1px solid #1f2937; border-radius:6px; font-size:12px;">
+          </select>
+        </label>
+        <div>
+          <label style="font-size:13px;">Variation simulée sur les cours (%)</label><br>
+          <input type="range" id="scenario-range" min="-50" max="50" value="10" step="1" />
+          <span id="scenario-range-value">+10 %</span>
+        </div>
+      </div>
+
+      <div class="kpis" style="margin-bottom:10px;">
+        <div class="kpi-box">
+          <div class="kpi-label">Valeur actuelle (incl. CASH)</div>
+          <div class="scenario-metric" id="scenario-current">‑</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-label">Valeur simulée</div>
+          <div class="scenario-metric" id="scenario-simulated">‑</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-label">Performance simulée</div>
+          <div class="scenario-metric" id="scenario-delta">‑</div>
+          <div class="kpi-delta" id="scenario-delta-extra"></div>
+        </div>
+      </div>
+
+      <h3>Lignes impactées par le scénario</h3>
+      <table id="scenario-table">
+        <thead>
+          <tr>
+            <th>ShortName</th>
+            <th>Ticker</th>
+            <th>Quantité</th>
+            <th>Cours actuel (€)</th>
+            <th>Cours simulé (€)</th>
+            <th>Valeur simulée (€)</th>
+            <th>Gain/Perte simulé (€)</th>
+            <th>Gain/Perte simulé (%)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===================== TAB 4: DIVIDENDES ===================== -->
+  <div class="tab-content" id="tab-dividends">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Dividendes &amp; rente estimée</div>
+        <span class="badge">Basé sur Rendement (%) du tab Tags</span>
+      </div>
+      <div class="kpis" style="margin-bottom:8px;">
+        <div class="kpi-box">
+          <div class="kpi-label">Revenu annuel estimé</div>
+          <div class="kpi-value" id="div-annual">‑</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-label">Revenu mensuel estimé</div>
+          <div class="kpi-value" id="div-monthly">‑</div>
+        </div>
+      </div>
+      <table id="dividends-table">
+        <thead>
+          <tr>
+            <th>ShortName</th>
+            <th>Ticker</th>
+            <th>Valeur actuelle (€)</th>
+            <th>Rendement (%)</th>
+            <th>Dividendes annuels estimés (€)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p class="muted" style="margin-top:6px;">Les montants sont purement indicatifs et dépendent du rendement que vous saisissez dans l&apos;onglet Tags / Stratégies.</p>
+    </div>
+  </div>
+
+  <!-- ===================== TAB 5: COMPARATIF ===================== -->
+  <div class="tab-content" id="tab-compare">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Comparatif historique (démo)</div>
+        <span class="badge">Snapshot fictif vs valeur actuelle</span>
+      </div>
+      <p class="muted">Choisissez une date passée fictive et observez la différence de valeur du portefeuille. Les prix passés sont simulés à partir d&apos;un pourcentage de la valeur actuelle.</p>
+      <div class="layout-two" style="margin-bottom:10px;">
+        <div>
+          <label>Date de référence (fictive)<br>
+            <input type="date" id="cmp-date" value="2024-01-01" style="background:#020617;border:1px solid #1f2937;border-radius:6px;color:var(--fg);padding:4px 6px;font-size:12px;" />
+          </label>
+          <p class="muted" style="margin-top:6px;">La démo suppose que la valeur passée était un pourcentage de la valeur actuelle (par exemple 85&nbsp;%).</p>
+        </div>
+        <div>
+          <label>Valeur passée en % de l&apos;actuelle<br>
+            <input type="range" id="cmp-ratio" min="50" max="110" value="85" />
+            <span id="cmp-ratio-value">85&nbsp;%</span>
+          </label>
+        </div>
+      </div>
+      <div class="kpis" style="margin-bottom:10px;">
+        <div class="kpi-box">
+          <div class="kpi-label">Valeur à la date</div>
+          <div class="kpi-value" id="cmp-past">‑</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-label">Valeur actuelle</div>
+          <div class="kpi-value" id="cmp-now">‑</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-label">Évolution</div>
+          <div class="kpi-value" id="cmp-delta">‑</div>
+          <div class="kpi-delta" id="cmp-delta-extra"></div>
+        </div>
+      </div>
+      <h3>Extrait du détail par ligne (simulation)</h3>
+      <table id="cmp-table">
+        <thead>
+          <tr>
+            <th>ShortName</th>
+            <th>Ticker</th>
+            <th>Valeur à la date (€)</th>
+            <th>Valeur actuelle (€)</th>
+            <th>Δ Valeur (€)</th>
+            <th>Δ Valeur (%)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ------------------ Données fictives de base ------------------
+const fmtEur = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 });
+const fmtNum2 = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPct2 = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const FX = {
+  "EUR": 1.0,
+  "USD": 1.49, // totalement fictif, juste pour illustrer
+  "GBX": 0.0117
+};
+
+let positions = [
+  { shortName: "AbbVie Inc.", ticker: "ABBV", sector: "Santé", currency: "USD", qty: 50, pru: 130.0, price: 145.0, tag: "Dividende US", yieldPct: 3.9 },
+  { shortName: "Cardinal Health", ticker: "CAH", sector: "Santé", currency: "USD", qty: 160, pru: 80.0, price: 90.0, tag: "Core portefeuille", yieldPct: 2.6 },
+  { shortName: "Duke Energy", ticker: "DUK", sector: "Services aux coll.", currency: "USD", qty: 120, pru: 90.0, price: 88.5, tag: "Utility défensif", yieldPct: 4.5 },
+  { shortName: "EPR Properties", ticker: "EPR", sector: "Immobilier", currency: "USD", qty: 90, pru: 40.0, price: 44.0, tag: "REIT", yieldPct: 7.2 },
+  { shortName: "Flowers Foods", ticker: "FLO", sector: "Consommation de base", currency: "USD", qty: 200, pru: 22.0, price: 25.5, tag: "Dividende croissant", yieldPct: 3.3 },
+  { shortName: "General Mills", ticker: "GIS", sector: "Consommation de base", currency: "USD", qty: 110, pru: 70.0, price: 76.2, tag: "Defensif", yieldPct: 3.1 },
+  { shortName: "HSBC PLC", ticker: "HSBA.L", sector: "Financier", currency: "GBX", qty: 500, pru: 560.0, price: 625.0, tag: "Banque UK", yieldPct: 4.0 },
+  { shortName: "Main Street Capital", ticker: "MAIN", sector: "Financier", currency: "USD", qty: 180, pru: 38.0, price: 45.2, tag: "Mensuel", yieldPct: 7.8 },
+  { shortName: "Prospect Capital", ticker: "PSEC", sector: "Financier", currency: "USD", qty: 300, pru: 7.0, price: 5.8, tag: "High yield", yieldPct: 10.5 },
+  { shortName: "Prudential Financial", ticker: "PRU", sector: "Financier", currency: "USD", qty: 80, pru: 95.0, price: 100.5, tag: "Value US", yieldPct: 4.2 }
+];
+
+let cashEur = 5000;
+let goalTarget = 150000;
+
+function eurPrice(pos) {
+  const fx = FX[pos.currency] || 1.0;
+  return pos.price * fx;
+}
+
+function eurPRU(pos) {
+  const fx = FX[pos.currency] || 1.0;
+  return pos.pru * fx;
+}
+
+function recomputePortfolio() {
+  const tbody = document.querySelector('#positions-table tbody');
+  tbody.innerHTML = '';
+
+  let totalValue = 0;
+  let totalInvested = 0;
+
+  positions.forEach((p, idx) => {
+    const pxEur = eurPrice(p);
+    const pruEur = eurPRU(p);
+    const valEur = pxEur * p.qty;
+    const invEur = pruEur * p.qty;
+    const gainEur = valEur - invEur;
+    const gainPct = invEur ? (gainEur / invEur * 100) : 0;
+
+    p._pxEur = pxEur;
+    p._valEur = valEur;
+    p._invEur = invEur;
+    p._gainEur = gainEur;
+    p._gainPct = gainPct;
+
+    totalValue += valEur;
+    totalInvested += invEur;
+  });
+
+  const totalWithCash = totalValue + cashEur;
+  const invWithCash = totalInvested + cashEur;
+
+  positions.forEach(p => {
+    p._weightPct = totalWithCash ? (p._valEur / totalWithCash * 100) : 0;
+  });
+
+  positions.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.shortName}</td>
+      <td>${p.ticker}</td>
+      <td>${p.sector}</td>
+      <td>${p.currency}</td>
+      <td><input type="number" data-field="qty" data-index="${idx}" value="${p.qty}" step="1" /></td>
+      <td><input type="number" data-field="pru" data-index="${idx}" value="${p.pru}" step="0.01" /></td>
+      <td><input type="number" data-field="price" data-index="${idx}" value="${p.price}" step="0.01" /></td>
+      <td>${fmtNum2.format(p._pxEur)}</td>
+      <td>${fmtNum2.format(p._valEur)}</td>
+      <td>${fmtNum2.format(p._invEur)}</td>
+      <td class="${p._gainEur>0?'delta-pos':(p._gainEur<0?'delta-neg':'')}">${fmtNum2.format(p._gainEur)}</td>
+      <td class="${p._gainPct>0?'delta-pos':(p._gainPct<0?'delta-neg':'')}">${fmtPct2.format(p._gainPct)}%</td>
+      <td>${fmtPct2.format(p._weightPct)}%</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  updateKpis(totalWithCash, invWithCash);
+  updateGoal(totalWithCash, goalTarget);
+  recomputeTagsAgg(totalWithCash);
+  recomputeDividends();
+  recomputeScenario();
+  recomputeCompare();
+}
+
+function updateKpis(totalWithCash, invWithCash) {
+  const kpiRoot = document.getElementById('portfolio-kpis');
+  kpiRoot.innerHTML = '';
+  const perfAbs = totalWithCash - invWithCash;
+  const perfPct = invWithCash ? (perfAbs / invWithCash * 100) : 0;
+
+  const boxes = [
+    {
+      label: 'Valeur totale (incl. CASH)',
+      value: totalWithCash,
+      extra: '',
+      cls: ''
+    },
+    {
+      label: 'Investi total (incl. CASH)',
+      value: invWithCash,
+      extra: '',
+      cls: ''
+    },
+    {
+      label: 'Performance globale',
+      value: perfPct,
+      extra: perfAbs,
+      cls: perfAbs >= 0 ? 'delta-pos' : 'delta-neg'
+    }
+  ];
+
+  boxes.forEach(b => {
+    const div = document.createElement('div');
+    div.className = 'kpi-box';
+    if (b.label === 'Performance globale') {
+      div.innerHTML = `
+        <div class="kpi-label">${b.label}</div>
+        <div class="kpi-value">${fmtPct2.format(b.value)}%</div>
+        <div class="kpi-delta ${b.cls}">${(b.extra>=0?'+':'')}${fmtNum2.format(Math.abs(b.extra))} €</div>`;
+    } else {
+      div.innerHTML = `
+        <div class="kpi-label">${b.label}</div>
+        <div class="kpi-value">${fmtEur.format(b.value)}</div>`;
+    }
+    kpiRoot.appendChild(div);
+  });
+}
+
+function updateGoal(totalWithCash, goal) {
+  const el = document.getElementById('goal-progress');
+  if (!goal || goal <= 0) {
+    el.textContent = 'Aucun objectif défini';
+    return;
+  }
+  const pct = Math.min(100, Math.max(0, totalWithCash / goal * 100));
+  const missing = Math.max(0, goal - totalWithCash);
+  el.textContent = `${pct.toFixed(1).replace('.', ',')}% (reste ${fmtNum2.format(missing)} €)`;
+}
+
+// -------- Tags / rendements --------
+function renderTagsTable() {
+  const tbody = document.querySelector('#tags-table tbody');
+  tbody.innerHTML = '';
+  positions.forEach((p, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.ticker}</td>
+      <td>${p.shortName}</td>
+      <td>${p.sector}</td>
+      <td><input type="text" data-tags="tag" data-index="${idx}" value="${p.tag || ''}" /></td>
+      <td><input type="number" data-tags="yield" data-index="${idx}" value="${p.yieldPct || 0}" step="0.1" /></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function recomputeTagsAgg(totalWithCash) {
+  const agg = {};
+  positions.forEach(p => {
+    if (!p.tag) return;
+    if (!agg[p.tag]) agg[p.tag] = { value:0, gain:0 };
+    agg[p.tag].value += p._valEur || 0;
+    agg[p.tag].gain += p._gainEur || 0;
+  });
+  const tbody = document.querySelector('#tags-agg-table tbody');
+  tbody.innerHTML = '';
+  Object.entries(agg).forEach(([tag, o]) => {
+    const weight = totalWithCash ? (o.value / totalWithCash * 100) : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${tag}</td>
+      <td>${fmtNum2.format(o.value)}</td>
+      <td class="${o.gain>0?'delta-pos':(o.gain<0?'delta-neg':'')}">${fmtNum2.format(o.gain)}</td>
+      <td>${fmtPct2.format(weight)}%</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// -------- Dividendes --------
+function recomputeDividends() {
+  let totalYear = 0;
+  const rows = [];
+  positions.forEach(p => {
+    const yieldPct = parseFloat(p.yieldPct) || 0;
+    const div = (p._valEur || 0) * yieldPct / 100;
+    totalYear += div;
+    rows.push({ p, yieldPct, div });
+  });
+  rows.sort((a,b)=>b.div-a.div);
+
+  const tbody = document.querySelector('#dividends-table tbody');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.p.shortName}</td>
+      <td>${r.p.ticker}</td>
+      <td>${fmtNum2.format(r.p._valEur||0)}</td>
+      <td>${fmtPct2.format(r.yieldPct)}%</td>
+      <td>${fmtNum2.format(r.div)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const annualEl = document.getElementById('div-annual');
+  const monthlyEl = document.getElementById('div-monthly');
+  annualEl.textContent = fmtEur.format(totalYear);
+  monthlyEl.textContent = fmtEur.format(totalYear/12);
+}
+
+// -------- Scénarios --------
+function renderScenarioSelect() {
+  const sel = document.getElementById('scenario-select');
+  sel.innerHTML = '';
+  positions.forEach((p, idx) => {
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.textContent = `${p.shortName} (${p.ticker})`;
+    sel.appendChild(opt);
+  });
+  // sélectionner 2 premiers par défaut
+  for (let i=0;i<Math.min(2, sel.options.length);i++) sel.options[i].selected = true;
+}
+
+function recomputeScenario() {
+  const sel = document.getElementById('scenario-select');
+  if (!sel) return;
+  const selectedIdx = Array.from(sel.selectedOptions).map(o=>parseInt(o.value));
+  const range = document.getElementById('scenario-range');
+  const movePct = parseFloat(range.value) || 0;
+
+  const totalVal = positions.reduce((acc,p)=>acc+(p._valEur||0),0);
+  const totalInv = positions.reduce((acc,p)=>acc+(p._invEur||0),0);
+  const totalCurrentWithCash = totalVal + cashEur;
+
+  // Applique scénario sur copie
+  let totalSim = 0;
+  const impactedRows = [];
+
+  positions.forEach((p, idx) => {
+    const isSel = selectedIdx.includes(idx);
+    const factor = isSel ? (1 + movePct/100) : 1;
+    const pxSim = (p._pxEur||0) * factor;
+    const valSim = pxSim * p.qty;
+    totalSim += valSim;
+    if (isSel) {
+      const gainEur = valSim - (p._invEur||0);
+      const gainPct = (p._invEur||0) ? (gainEur / (p._invEur||1) * 100) : 0;
+      impactedRows.push({ p, pxSim, valSim, gainEur, gainPct });
+    }
+  });
+
+  totalSim += cashEur;
+  const perfAbsSim = totalSim - (totalInv + cashEur);
+  const perfPctSim = (totalInv + cashEur) ? (perfAbsSim / (totalInv + cashEur) * 100) : 0;
+
+  document.getElementById('scenario-current').textContent = totalCurrentWithCash.toFixed(2).replace('.', ',') + ' €';
+  document.getElementById('scenario-simulated').textContent = fmtEur.format(totalSim);
+  const deltaEl = document.getElementById('scenario-delta');
+  const extraEl = document.getElementById('scenario-delta-extra');
+  deltaEl.textContent = (perfAbsSim>=0?'+':'') + fmtNum2.format(Math.abs(perfAbsSim)) + ' €';
+  extraEl.textContent = (perfPctSim>=0?'+':'') + fmtPct2.format(Math.abs(perfPctSim)) + ' %';
+  extraEl.className = 'kpi-delta ' + (perfAbsSim>=0?'delta-pos':'delta-neg');
+
+  const tbody = document.querySelector('#scenario-table tbody');
+  tbody.innerHTML = '';
+  impactedRows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.p.shortName}</td>
+      <td>${r.p.ticker}</td>
+      <td>${r.p.qty}</td>
+      <td>${fmtNum2.format(r.p._pxEur||0)}</td>
+      <td>${fmtNum2.format(r.p._pxEur||0)}</td>
+      <td>${fmtNum2.format(r.valSim)}</td>
+      <td class="${r.gainEur>0?'delta-pos':(r.gainEur<0?'delta-neg':'')}">${fmtNum2.format(r.gainEur)}</td>
+      <td class="${r.gainPct>0?'delta-pos':(r.gainPct<0?'delta-neg':'')}">${fmtPct2.format(r.gainPct)}%</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// -------- Comparatif historique (simulation) --------
+function recomputeCompare() {
+  const ratioSlider = document.getElementById('cmp-ratio');
+  const ratio = parseFloat(ratioSlider.value) || 85;
+  document.getElementById('cmp-ratio-value').textContent = ratio.toFixed(0) + ' %';
+
+  const totalNow = positions.reduce((acc,p)=>acc+(p._valEur||0),0) + cashEur;
+  const totalPast = totalNow * ratio / 100;
+  const deltaAbs = totalNow - totalPast;
+  const deltaPct = totalPast ? (deltaAbs / totalPast * 100) : 0;
+
+  document.getElementById('cmp-now').textContent = fmtEur.format(totalNow);
+  document.getElementById('cmp-past').textContent = fmtEur.format(totalPast);
+
+  const deltaEl = document.getElementById('cmp-delta');
+  const extraEl = document.getElementById('cmp-delta-extra');
+  deltaEl.textContent = (deltaAbs>=0?'+':'') + fmtNum2.format(Math.abs(deltaAbs)) + ' €';
+  extraEl.textContent = (deltaPct>=0?'+':'') + fmtPct2.format(Math.abs(deltaPct)) + ' %';
+  extraEl.className = 'kpi-delta ' + (deltaAbs>=0?'delta-pos':'delta-neg');
+
+  const tbody = document.querySelector('#cmp-table tbody');
+  tbody.innerHTML = '';
+  positions.slice(0,4).forEach(p => {
+    const pastVal = (p._valEur||0) * ratio / 100;
+    const d = (p._valEur||0) - pastVal;
+    const pct = pastVal ? (d / pastVal * 100) : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.shortName}</td>
+      <td>${p.ticker}</td>
+      <td>${fmtNum2.format(pastVal)}</td>
+      <td>${fmtNum2.format(p._valEur||0)}</td>
+      <td class="${d>0?'delta-pos':(d<0?'delta-neg':'')}">${fmtNum2.format(d)}</td>
+      <td class="${pct>0?'delta-pos':(pct<0?'delta-neg':'')}">${fmtPct2.format(pct)}%</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// -------- Tab handling --------
+function initTabs() {
+  const tabs = document.querySelectorAll('.tab-btn');
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const tabId = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-content').forEach(c => {
+        c.classList.toggle('active', c.id === tabId);
+      });
+    });
+  });
+}
+
+// -------- Listeners d'édition --------
+function initEditors() {
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t.matches('#input-cash')) {
+      cashEur = parseFloat(t.value) || 0;
+      recomputePortfolio();
+    } else if (t.matches('#input-goal')) {
+      goalTarget = parseFloat(t.value) || 0;
+      const totalNow = positions.reduce((acc,p)=>acc+(p._valEur||0),0) + cashEur;
+      updateGoal(totalNow, goalTarget);
+    } else if (t.dataset && t.dataset.field) {
+      const idx = parseInt(t.dataset.index);
+      const field = t.dataset.field;
+      const val = parseFloat(t.value) || 0;
+      positions[idx][field] = val;
+      recomputePortfolio();
+    } else if (t.dataset && t.dataset.tags) {
+      const idx = parseInt(t.dataset.index);
+      if (t.dataset.tags === 'tag') {
+        positions[idx].tag = t.value;
+      } else if (t.dataset.tags === 'yield') {
+        positions[idx].yieldPct = parseFloat(t.value) || 0;
+      }
+      recomputePortfolio();
+      renderTagsTable();
+    } else if (t.matches('#scenario-range')) {
+      document.getElementById('scenario-range-value').textContent = (parseFloat(t.value)>=0?'+':'') + t.value + ' %';
+      recomputeScenario();
+    } else if (t.matches('#cmp-ratio')) {
+      recomputeCompare();
+    }
+  });
+
+  document.getElementById('scenario-select').addEventListener('change', recomputeScenario);
+}
+
+// -------- Init --------
+window.addEventListener('DOMContentLoaded', () => {
+  initTabs();
+  renderTagsTable();
+  renderScenarioSelect();
+  recomputePortfolio();
+  initEditors();
+});
+</script>
+</body>
+</html>
